@@ -1,0 +1,172 @@
+# TrustTrace — Product Requirements Document (Draft)
+
+**Status:** Draft for team review  
+**Version:** 0.2  
+**Product:** TrustTrace  
+**Purpose:** Detect malicious or deceptive content and verify financial instructions before a person or AI agent acts on them.
+
+## 1. Product summary
+
+TrustTrace analyzes emails, messages, webpages, and invoices for malicious or deceptive content, including suspicious financial instructions and prompt-injection attempts aimed at AI agents. It then checks relevant financial claims against trusted reference records and authorized PayPal context, where available. Instead of returning only a generic “safe/unsafe” label, TrustTrace highlights the exact suspicious content, explains the evidence, identifies discrepancies, and recommends a safe next step.
+
+**Core idea:** combine content-level threat detection with evidence-based financial verification in one workflow.
+
+## 2. Problem
+
+People and AI agents may be manipulated by content that looks legitimate but contains malicious instructions, impersonation, altered payment details, misleading claims, or urgency designed to trigger a financial action. A text-only detector may miss a recipient or amount change; a simple record-matching system may miss prompt injection or deceptive instructions when the visible payment fields match.
+
+Users need one workflow that:
+1. inspects the content itself,
+2. verifies financial claims against trusted information where available,
+3. explains why something is suspicious, and
+4. helps the user make an informed decision before proceeding.
+
+## 3. Goals
+
+- Analyze user-submitted content for suspicious or malicious indicators.
+- Detect potentially harmful instructions, including prompt injection targeting AI agents.
+- Extract relevant financial claims such as payee, amount, currency, invoice/order reference, due date, and payment-detail changes.
+- Compare extracted claims with user-provided trusted records and authorized PayPal context when available.
+- Show evidence and discrepancies in a way a user can inspect.
+- Return a risk level, reasons, confidence/uncertainty, and recommended next action.
+- Keep a human in control of consequential payment decisions.
+
+## 4. Non-goals and limitations
+
+- TrustTrace does not guarantee that content is safe or malicious.
+- It does not independently prove a sender’s identity from text alone.
+- It does not monitor every email, webpage, or PayPal transaction on the internet.
+- It must not claim to block or intercept arbitrary PayPal payments. Payment blocking or execution is only in scope if a supported, authorized integration explicitly enables it.
+- It does not treat the analyzed content as trusted instructions to the AI system. Content is data to inspect, not instructions to follow.
+- It does not replace independent verification through a known, previously trusted contact channel.
+
+## 5. Target users and primary use cases
+
+### Primary users
+- Individuals or small businesses reviewing suspicious invoices or payment requests.
+- Teams using AI agents to summarize or process incoming documents.
+- Developers integrating content-risk checks into a workflow.
+
+### Use cases
+1. **Suspicious email/message:** Analyze a message asking the user to pay urgently or change payment details.
+2. **Invoice verification:** Extract invoice fields and compare them with a trusted invoice/order/vendor record.
+3. **Prompt injection detection:** Identify content attempting to override an AI agent’s instructions, reveal secrets, or trigger unauthorized actions.
+4. **Altered financial instruction:** Flag a changed recipient, amount, payment link, invoice reference, or due date when it conflicts with a trusted record.
+5. **Evidence review:** Let the user inspect the exact text span, the comparison result, and the reason for each finding.
+
+## 6. User workflow
+
+1. User submits text or a supported document and optionally supplies trusted reference data.
+2. TrustTrace normalizes the input and extracts relevant text.
+3. The detection stage identifies suspicious content, prompt-injection patterns, deceptive claims, and financial instructions.
+4. The extraction stage identifies structured financial claims, if present.
+5. The verification stage compares those claims with supplied trusted records and any authorized PayPal data available to the integration.
+6. The system returns a report containing findings, evidence spans, discrepancies, risk level, limitations, and recommended next action.
+7. User reviews the report and decides what to do. Any consequential payment action remains under the user’s control unless a separately authorized integration supports a specific action.
+
+## 7. Functional requirements
+
+### FR-1: Content submission
+- Accept text content in the request.
+- Optionally accept a document reference or uploaded file through a separately implemented upload mechanism.
+- Accept optional source metadata and trusted reference records.
+- Validate input size, content type, and required fields.
+
+### FR-2: Malicious-content analysis
+- Detect indicators of deception, impersonation, suspicious urgency, altered instructions, and malicious financial requests.
+- Detect prompt-injection-like instructions, such as attempts to override system/developer instructions, request secrets, or direct an agent to take unrelated actions.
+- Return a finding category, severity, confidence, and evidence text span where possible.
+- Treat detections as indicators, not definitive proof.
+
+### FR-3: Financial claim extraction
+When present, extract:
+- payer or payee/recipient,
+- amount and currency,
+- invoice/order/reference number,
+- due date,
+- payment destination or payment link,
+- claims that payment details have changed,
+- requested action and urgency language.
+
+Fields may be absent or uncertain. The API must represent unknown values as null/omitted rather than inventing them.
+
+### FR-4: Trusted-record comparison
+- Compare extracted claims with user-provided reference data.
+- Where available and authorized, compare against PayPal-related invoice/order/payment context.
+- Return field-level comparison results: match, mismatch, missing, or unable to verify.
+- Do not imply PayPal data was checked if no integration data was actually available.
+
+### FR-5: Evidence and explanations
+For every finding or discrepancy, return:
+- a stable finding identifier,
+- category and severity,
+- a short explanation,
+- evidence text or excerpt,
+- evidence location (character offsets where available),
+- the comparison basis/source,
+- limitations or uncertainty.
+
+### FR-6: Risk assessment
+Return an overall risk level (`low`, `medium`, `high`, or `critical`) plus a concise explanation. Risk must not be based on model confidence alone. Include `needs_human_review` when the evidence is incomplete, contradictory, or consequential.
+
+### FR-7: Review decision
+Allow the user to record a review decision such as `proceed`, `pause`, `reject`, or `needs_more_info`, with an optional note. This records the user’s decision; it does not itself initiate or block a PayPal payment.
+
+### FR-8: PayPal integration status
+Expose whether a PayPal integration is configured, authorized, and available for the requested verification. Do not expose secrets or tokens.
+
+## 8. Non-functional requirements
+
+- **Security:** validate input, protect credentials, avoid logging sensitive raw content unnecessarily, and use least-privilege integration permissions.
+- **Privacy:** explain what content is processed and retained; provide retention/deletion policy before production use.
+- **Reliability:** return structured errors and stable IDs.
+- **Traceability:** preserve which sources were actually consulted and which comparisons were performed.
+- **Safety:** untrusted submitted content must never override system policy or trigger actions by itself.
+- **Usability:** evidence and reasons should be understandable to a non-expert.
+- **Auditability:** record review decisions and relevant verification metadata without unnecessarily retaining full sensitive content.
+
+## 9. MVP scope
+
+### In scope
+- Text-first analysis.
+- Optional trusted reference data supplied by the user.
+- Detection findings for suspicious/deceptive content and prompt injection.
+- Extraction of financial claims.
+- Field-by-field comparison with supplied reference data.
+- Explicitly labeled PayPal context when a real, authorized integration is available.
+- Evidence-backed report and review-decision endpoint.
+
+### Not required for the first MVP
+- Automatic scanning of inboxes or websites.
+- Universal PayPal transaction interception.
+- Automatic payment execution.
+- Guaranteed malware detection for arbitrary binary files.
+- Production-grade support for every file type.
+- Claims that an AI score is a definitive fraud determination.
+
+## 10. Success criteria
+
+- A submitted example produces a structured report rather than only a binary label.
+- Findings include evidence text or a clear reason when evidence spans are unavailable.
+- Financial fields are compared only when both the extracted value and a trusted comparison value exist.
+- The report distinguishes “mismatch,” “suspicious content,” and “not verified.”
+- The API clearly identifies whether PayPal context was available and used.
+- Review decisions can be recorded without initiating a payment.
+
+## 11. Key data objects
+
+- **Analysis:** one submitted content item and its resulting assessment.
+- **Finding:** one suspicious-content indicator or prompt-injection signal.
+- **Financial claim:** a structured value extracted from the content.
+- **Comparison:** a comparison between a claim and a trusted reference value.
+- **Evidence item:** source, excerpt, location, and explanation supporting a finding.
+- **Review:** a user’s recorded decision and optional note.
+- **Integration status:** availability and authorization state of a supported external integration.
+
+## 12. Open decisions for team review
+
+- Which file types will the first demo accept beyond plain text?
+- Which PayPal sandbox/API resources can the team access and authorize during the hackathon?
+- Which detector/model will be used for prompt injection and deceptive-content indicators?
+- What evidence retention policy is appropriate for the demo?
+- Should the first demo focus on one scenario (e.g., supplier payment-change email) while retaining the broader content-analysis architecture?
